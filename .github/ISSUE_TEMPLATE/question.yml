@@ -1,0 +1,23 @@
+name: Question
+description: Have a question? Try Discussions first.
+title: "[question] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Please use [Discussions](https://github.com/tkawen/tkawen-com/discussions) for questions when possible.**
+        Use this issue type only if you believe the question reveals a documentation gap or bug.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you have tried so far
+      description: Links to docs, SDK calls attempted, etc.

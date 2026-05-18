@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/tkawen/tkawen-api/discussions
+    about: Use Discussions for questions, ideas, and show-and-tell.
+  - name: Security vulnerability
+    url: https://github.com/tkawen/tkawen-api/security/advisories/new
+    about: Report security issues privately — do NOT open a public issue.
+  - name: Developer documentation
+    url: https://developer.tkawen.com
+    about: Read the official docs before filing an issue.
+  - name: Community Discord
+    url: https://discord.gg/tkawen
+    about: Real-time chat with the team and other developers.

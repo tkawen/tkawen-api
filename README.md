@@ -1,140 +1,140 @@
+<div align="center">
+
+<img src="https://tkawen.com/og.svg" width="640" alt="TKAWEN — Seven APIs. One Platform." />
+
 # tkawen-api
 
-**Status: alpha · scaffold only · not production-functional yet.**
+**Unified API gateway for TKAWEN — one Bearer key, seven pillars, OpenAPI 3.1.**
 
-This is the planned unified API gateway for TKAWEN Sovereign Cloud — the
-`api.tkawen.com` endpoint that fronts all 7 pillars under one authentication
-scheme.
+[![ci](https://github.com/tkawen/tkawen-api/actions/workflows/ci.yml/badge.svg)](https://github.com/tkawen/tkawen-api/actions/workflows/ci.yml)
+[![Status: alpha](https://img.shields.io/badge/status-alpha-f59e0b)](https://github.com/tkawen/tkawen-api)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![Discord](https://img.shields.io/badge/community-discord-5865f2)](https://discord.gg/tkawen)
+
+</div>
+
+---
+
+> **Status: alpha scaffold — not production-functional yet.** Read [Roadmap](#roadmap-to-production-functional) before integrating.
 
 ## What this is
 
-A **reverse proxy + auth layer** in Rust (Axum + reqwest) that routes
-incoming requests under `/v1/<pillar>/*` to the appropriate backend:
+The planned **unified API gateway** for TKAWEN Sovereign Cloud — the `api.tkawen.com` endpoint that fronts seven cloud APIs (Identity, Connect, Pay, Commerce, Knowledge, Logistics, Developer) behind one authentication scheme.
 
 ```
-api.tkawen.com/v1/identity/*   →  Authentik (id.tkawen.com)
-api.tkawen.com/v1/connect/*    →  LIQAA Cloud (api.liqaa.io)
-api.tkawen.com/v1/pay/*        →  TKAWEN Pay (Chargily-backed)
+api.tkawen.com/v1/identity/*   →  Authentik
+api.tkawen.com/v1/connect/*    →  LIQAA Cloud
+api.tkawen.com/v1/pay/*        →  TKAWEN Pay
 api.tkawen.com/v1/commerce/*   →  MyStoq backend
-api.tkawen.com/v1/knowledge/*  →  Algeria Certify + Academy
-api.tkawen.com/v1/logistics/*  →  Traccar + carrier integrations
+api.tkawen.com/v1/knowledge/*  →  Certify backend
+api.tkawen.com/v1/logistics/*  →  Traccar + carriers
 api.tkawen.com/v1/usage        →  this service (billing layer)
 ```
 
-## What this is NOT (yet)
+## What works today
 
-- **Not a functional gateway.** The backends advertised at `*.tkawen.com`
-  subdomains in the marketing site don't exist with `/v1/...` URLs yet.
-  This gateway will need actual upstream services with stable API surfaces
-  before it can route to them.
-- **Not authenticated against TKAWEN ID.** The auth middleware is a
-  skeleton — it validates the `Bearer` token format but does not verify
-  against the real Authentik OIDC issuer.
-- **Not rate-limited.** Real implementation needs Redis-backed counters.
-- **Not billed.** Usage tracking writes to stdout, not to a billing DB.
-- **No OpenAPI spec yet.** Will be added once routes are stable.
+This scaffold deliberately ships **honest** behaviour so SDK developers can integrate against it without waiting for full backends:
 
-## What this IS today
+| Endpoint | Behaviour |
+|----------|-----------|
+| `GET /v1/health` | Real JSON listing all 7 pillars as `scaffold` |
+| `GET /v1/usage` (auth) | Mock usage data for SDK integration testing |
+| `GET /v1/keys` (auth) | Empty list placeholder |
+| `POST /v1/keys` (auth) | `503` with implementation roadmap pointer |
+| `* /v1/<pillar>/*` | `503` with JSON pointing to developer docs — explicit, never silent |
+| `GET /` | Small HTML landing explaining alpha status |
+| `GET /healthz` | `ok` for load balancers |
 
-A working Rust server that:
-
-1. Boots on `127.0.0.1:9099` (or `$TKAWEN_API_ADDR`)
-2. Accepts requests under `/v1/*`
-3. Validates the `Authorization: Bearer ...` header format
-4. Returns `503 Service Unavailable` with a JSON `{ "error": "upstream
-   not yet implemented" }` for any pillar route — explicit and honest
-5. Returns `200 { "status": "ok" }` for `/v1/health`
-6. Returns mock `/v1/usage` JSON for testing client SDKs against
-
-This is enough to:
-- **Develop SDKs in parallel** (JS/PHP/Python/Go can integrate against
-  this skeleton — they'll get 503 but their integration code is ready)
-- **Write integration tests** that verify routing + auth shape
-- **Document the planned API surface** (OpenAPI spec lives here)
-- **Deploy a "coming soon" landing** at api.tkawen.com that responds
-  honestly instead of 404
+Auth middleware validates the **shape** of the Bearer token (`sk_live_*` or `sk_sandbox_*`, 32+ chars) but does not yet verify against a real key store.
 
 ## Quick start
 
 ```bash
-# Set up PATH for LLVM-MinGW + cargo
-$env:Path = "D:\F\.toolchain\llvm-mingw-20251007-ucrt-x86_64\bin;$env:USERPROFILE\.cargo\bin;$env:Path"
-
-cd D:\F\tkawen-api
+git clone https://github.com/tkawen/tkawen-api.git
+cd tkawen-api
 cargo build --release
-.\target\release\tkawen-api.exe
+./target/release/tkawen-api
 # → http://127.0.0.1:9099
 
 curl http://127.0.0.1:9099/v1/health
-# → {"status":"ok","version":"0.1.0-alpha","gateway":"tkawen-api"}
+# {"status":"ok","version":"0.1.0-alpha","gateway":"tkawen-api","upstream_status":{...}}
 
-curl -H "Authorization: Bearer sk_sandbox_test" \
+curl -H "Authorization: Bearer sk_sandbox_test_xxxxxxxxxxxxxxxx" \
      http://127.0.0.1:9099/v1/connect/rooms
-# → 503 Service Unavailable
-# {"error":"upstream not yet implemented","pillar":"connect","path":"/rooms"}
+# 503 Service Unavailable
+# {"error":"upstream_not_yet_implemented","pillar":"connect", ...}
 ```
+
+## Stack
+
+| Layer | Choice |
+|-------|--------|
+| HTTP server | [Axum](https://github.com/tokio-rs/axum) 0.7 |
+| HTTP client (upstreams) | [reqwest](https://github.com/seanmonstar/reqwest) 0.12 (rustls) |
+| Middleware | tower + tower-http (compression, CORS, security headers) |
+| Auth verification | HMAC-SHA256 for webhook sig; future: JWKs against Authentik |
+| Runtime | Tokio multi-threaded |
 
 ## Roadmap to production-functional
 
 ### Phase 1 — Real auth (week 1-2)
 - Replace skeleton auth with Authentik OIDC token verification (JWKs)
-- Add API key model (Postgres) — issue, rotate, revoke, scope per pillar
-- Add Redis-backed rate limiting (per key, per pillar)
+- API key model in Postgres — issue, rotate, revoke, scope per pillar
+- Redis-backed rate limiting (per key, per pillar)
 
-### Phase 2 — First real pillar wired (week 3-4)
-- Wire `/v1/connect/*` to api.liqaa.io with token translation
-- Add request/response logging to Postgres
-- Write integration tests using real LIQAA backend
+### Phase 2 — First real pillar (week 3-4)
+- Wire `/v1/connect/*` to LIQAA Cloud with token translation
+- Request/response logging to Postgres
+- Integration tests against real LIQAA backend
 
 ### Phase 3 — Remaining pillars (week 5-8)
 - Identity, Pay, Commerce, Knowledge, Logistics
-- Each requires backend to expose stable `/v1/...` surface
-- May require breaking changes in existing platforms (MyStoq, Certify)
+- Each requires the upstream backend to expose a stable `/v1/...` surface
 
 ### Phase 4 — Billing + observability (week 9-10)
 - Real-time usage tracking with billing recompute every 10 minutes
 - Stripe-style "next invoice" endpoint
-- Tie into Chargily for actual charging
+- Tie into payment processor for actual charging
 
 ### Phase 5 — OpenAPI + SDK regeneration (week 11-12)
 - OpenAPI 3.1 spec auto-generated from routes
 - Trigger SDK rebuild for all 4 languages on spec change
-- Publish at api.tkawen.com/openapi.json + openapi.yaml
+- Publish at `api.tkawen.com/openapi.json` + `.yaml`
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                  api.tkawen.com (TLS)                   │
-│                          │                              │
-│              ┌───────────┴───────────┐                  │
-│              │    tkawen-api (Rust)  │                  │
-│              │  ──────────────────   │                  │
-│              │  Auth middleware       │                  │
-│              │  Rate limiter         │                  │
-│              │  Usage tracker        │                  │
-│              │  Reverse proxy router │                  │
-│              └───────────┬───────────┘                  │
-│              ┌───────────┼───────────┐                  │
-│              │           │           │                  │
-│      identity.tkawen     │     connect.tkawen           │
-│      (Authentik)         │     (LIQAA Cloud — Go)       │
-│                          │                              │
-│      pay.tkawen          │     commerce.tkawen          │
-│      (Chargily proxy)    │     (MyStoq — Laravel)       │
-│                          │                              │
-│      knowledge.tkawen    │     logistics.tkawen         │
-│      (Certify — Laravel) │     (Traccar — Java)         │
-└─────────────────────────────────────────────────────────┘
+                ┌───────────────────────┐
+                │    api.tkawen.com     │
+                │       (TLS edge)      │
+                └───────────┬───────────┘
+                            │
+                ┌───────────▼───────────┐
+                │   tkawen-api (Rust)   │
+                │  Auth · Rate limit ·  │
+                │   Usage · Routing     │
+                └───────────┬───────────┘
+                            │
+        ┌───────┬───────────┼───────────┬───────────┐
+        ▼       ▼           ▼           ▼           ▼
+   Authentik LIQAA       Chargily   MyStoq      Traccar
+   (Identity) (Connect)  (Pay)      (Commerce)  (Logistics)
 ```
-
-## License
-
-AGPL-3.0-or-later. See LICENSE.
 
 ## Why open source?
 
-Because sovereign cloud means **inspectable cloud**. If anyone wants to
-fork this and run their own Algerian API gateway, they should be able to.
-The commercial value is in the operated service, the data residency, the
-support — not in the source being secret.
+Sovereign infrastructure means **inspectable infrastructure**. If a regulated buyer wants to fork this and run their own gateway, they should be able to.
+
+Commercial value is in the **operated service** — the SLA, the data residency story, the support — not in the source being secret.
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md). Especially welcome at this stage: code review on the auth middleware, OpenAPI spec contributions, test infrastructure.
+
+## License
+
+[AGPL-3.0-or-later](./LICENSE).
+
+## Security
+
+[SECURITY.md](./SECURITY.md) — please do not open public issues for security vulnerabilities.
