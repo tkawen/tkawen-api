@@ -9,7 +9,7 @@
 
 use axum::{
     body::Body,
-    extract::{Path, Request},
+    extract::Request,
     http::{header, HeaderValue, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -46,8 +46,16 @@ async fn main() {
     let app = Router::new()
         .route("/", get(root_landing))
         .route("/v1/health", get(health))
-        .route("/v1/usage", get(usage_mock).layer(middleware::from_fn(require_auth)))
-        .route("/v1/keys", get(keys_list_mock).post(keys_create_mock).layer(middleware::from_fn(require_auth)))
+        .route(
+            "/v1/usage",
+            get(usage_mock).layer(middleware::from_fn(require_auth)),
+        )
+        .route(
+            "/v1/keys",
+            get(keys_list_mock)
+                .post(keys_create_mock)
+                .layer(middleware::from_fn(require_auth)),
+        )
         // 7 pillar wildcard routes — all return 503 with honest message until
         // upstream services are wired.
         .route("/v1/identity/*path", any(pillar_503))
@@ -151,7 +159,8 @@ struct HealthResponse {
 }
 
 async fn root_landing() -> impl IntoResponse {
-    let html = format!(r##"<!doctype html>
+    let html = format!(
+        r##"<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>api.tkawen.com</title>
 <style>body{{font-family:system-ui,sans-serif;background:#0a0e1a;color:#e2e8f0;padding:60px 24px;max-width:680px;margin:0 auto;line-height:1.7}}
 h1{{color:#fff;letter-spacing:-.02em}}code{{background:#151b2e;padding:2px 8px;border-radius:4px;color:#fbbf24;font-family:ui-monospace,monospace}}
@@ -164,7 +173,9 @@ a{{color:#3b82f6}}.banner{{background:rgba(245,158,11,.1);border:1px solid rgba(
 <p>Source: <a href="https://github.com/hartemyaakoub/tkawen-api">github.com/hartemyaakoub/tkawen-api</a></p>
 <p>Status: <a href="https://status.tkawen.com">status.tkawen.com</a></p>
 <p><strong>Version</strong>: <code>{}</code></p>
-</body></html>"##, VERSION);
+</body></html>"##,
+        VERSION
+    );
 
     ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], html)
 }
